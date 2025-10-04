@@ -7,7 +7,7 @@ import Job from "../models/Job.js"
 export const getUserData = async (req, res) => {
     const { userId } = req.auth();   // Clerk userId (string)
     try {
-        console.log('User Id is ',userId)
+        console.log('User Id is from login user',userId)
         const user = await User.findById(userId)
         if (!user) {
             return res.json({ success: false, message: 'User not found' })

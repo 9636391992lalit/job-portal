@@ -5,8 +5,10 @@ import User from "../models/User.js";
 export  const clearksWebhooks=async(req,res)=>{
     try
     {
+     console.log("Headers:", req.headers);
      //Create a svix instance with  clear webhook secret.
      const whook = new Webhook (process.env.CLERK_WEBHOOK_SECRET)
+     
      // Verifiying the header
      await whook.verify(JSON.stringify(req.body),{
         "svix-id":req.headers["svix-id"],
@@ -17,6 +19,7 @@ export  const clearksWebhooks=async(req,res)=>{
      // Getting Data from req body
      const {data,type}=req.body
      //Switch Cases for different Events
+     console.log("✅ Verified event:", type, data);
      switch(type)
      {
         case 'user.created':{
