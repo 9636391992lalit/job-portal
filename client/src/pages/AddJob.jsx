@@ -1,6 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react'
+/* eslint-disable no-empty */
+/* eslint-disable no-unused-vars */
+import React, { useEffect, useRef, useState,useContext } from 'react'
 import Quill from 'quill'
+import axios from 'axios'
+import {AppContext} from '../context/AppContext'
 import { JobCategories, JobLocations } from '../assets/assets'
+import {toast} from 'react-toastify'
 const AddJob = () => {
     const [title, setTitle] = useState('')
     const [location, setLocation] = useState('Banglore')
@@ -9,6 +14,34 @@ const AddJob = () => {
     const [salary, setSalary] = useState('0')
     const editorRef = useRef(null)
     const quillRef = useRef(null)
+    const {backendUrl,companyToken}=useContext(AppContext)
+    
+    const onSubmitHandler= async(e)=>
+    {
+        e.preventDefault()
+
+        try{
+            const description=quillRef.current.root.innerHTML
+            const {data}=await axios.post(backendUrl+'/api/company/post-job',
+                {title,description,location,salary,category,level},
+                {headers:{token:companyToken}}
+            )
+            if(data.success)
+            {
+                toast.success(data.message)
+                setTitle('')
+                setSalary(0)
+                quillRef.current.root.innerHTML=""
+
+            }
+            else
+            toast.error(data.message)
+        }
+        catch(error)
+        {
+            toast.error(error.message)
+        }
+    }
     useEffect(() => {
         //Initilaze the quill once
         if (!quillRef.current && editorRef.current) {
@@ -19,7 +52,7 @@ const AddJob = () => {
 
     }, [])
     return (
-        <form action="" className='conatiner p-4 flex flex-col w-full item-start gap-3'>
+        <form onSubmit={onSubmitHandler} action="" className='conatiner p-4 flex flex-col w-full item-start gap-3'>
             <div className='w-full'>
                 <p className='mb-2'>Job Title</p>
                 <input type="text" placeholder='Type Here' onChange={e => setTitle(e.target.value)} value={title} required className='w-full max-w-lg px-3 py-2 border-2 border-gray-300 rounded outline-none' />
