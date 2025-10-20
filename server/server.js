@@ -40,5 +40,3 @@ app.listen(PORT,()=>{
     console.log(`Server is running at port ${PORT}`)
 })
 
-// UZjYLxVXxzM7bfC2
-//lalit220101_db_user

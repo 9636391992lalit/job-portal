@@ -78,7 +78,7 @@ const AddJob = () => {
                     <select className='w-full px-3 py-2 border-2 border-gray-300 rounded' onChange={e => setLevel(e.target.value)} id="">
                         <option value="Fresher level">Fresher level</option>
                         <option value="Intermidiate level">Intermediate level</option>
-                        <option value="Seniour level">Fresher level</option>
+                        <option value="Seniour level">Expert Level</option>
                     </select>
                 </div>
             </div>
