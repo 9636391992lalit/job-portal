@@ -13,6 +13,7 @@ import 'quill/dist/quill.snow.css'
 // eslint-disable-next-line no-unused-vars
 import {ToastContainer, toast} from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import SavedJobs from './pages/SavedJobs'
 const App = () => {
   const { showRecruiterLogin , companyToken} = useContext(AppContext)
   return (
@@ -25,6 +26,7 @@ const App = () => {
         <Route path='/' element={<Home />} />
         <Route path='/apply-job/:id' element={<ApplyJob />} />
         <Route path='/applications' element={<Applications />} />
+        <Route path='/saved-jobs' element={<SavedJobs />} />
         <Route path='/dashboard' element={<Dashboard />}>
           {companyToken?<> <Route path='add-job' element={<AddJob />} />
           <Route path='manage-jobs' element={<ManageJobs />} />

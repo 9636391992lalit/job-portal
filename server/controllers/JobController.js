@@ -8,7 +8,7 @@ res.json({success:true,jobs})
     }
     catch(error)
     {
-        res.json({success:false, message:error})
+        res.json({success:false, message:error.message})
     }
 }
 // Get a single joob by Id

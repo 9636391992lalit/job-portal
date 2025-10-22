@@ -86,3 +86,67 @@ export const updateUserResume = async (req, res) => {
         res.json({ success: false, message: error.message })
     }
 }
+export const toggleSaveJob = async (req, res) => {
+    try {
+        const { jobId } = req.body;
+        const { userId } = getAuth(req); // Clerk se user ID
+
+        if (!jobId) {
+            return res.status(400).json({ success: false, message: 'Job ID is required' });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Check karein ki job already saved hai ya nahi
+        const jobIndex = user.savedJobs.indexOf(jobId);
+
+        if (jobIndex > -1) {
+            // Agar already saved hai, toh array se nikaal dein (Unsave)
+            user.savedJobs.pull(jobId);
+            await user.save();
+            res.json({ success: true, message: 'Job removed from saved list' });
+        } else {
+            // Agar saved nahi hai, toh array mein add kar dein (Save)
+            user.savedJobs.push(jobId);
+            await user.save();
+            res.json({ success: true, message: 'Job saved successfully!' });
+        }
+
+    } catch (error) {
+        console.error("Error in toggleSaveJob:", error);
+        res.status(500).json({ success: false, message: "Server error, please try again." });
+    }
+};
+
+// <-- NEW: User ke saare saved jobs laane ka logic -->
+export const getSavedJobs = async (req, res) => {
+    try {
+        const { userId } = getAuth(req); // Clerk se user ID
+        
+        // User ko find karein aur 'savedJobs' field ko populate karein
+        // Populate se humein sirf ID nahi, poori job details mil jayengi
+        const user = await User.findById(userId).populate({
+            path: 'savedJobs',
+            populate: {
+                path: 'companyId', // Har job ke saath uski company details bhi laayein
+                select: '-password' // Security ke liye company ka password na laayein
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Saved jobs ko reverse order mein bhejein (latest sabse pehle)
+        const savedJobs = user.savedJobs.reverse();
+        res.json({ success: true, savedJobs });
+
+    } catch (error) {
+        console.error("Error in getSavedJobs:", error);
+        res.status(500).json({ success: false, message: "Server error, please try again." });
+    }
+};

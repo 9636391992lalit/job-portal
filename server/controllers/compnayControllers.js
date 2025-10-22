@@ -14,7 +14,7 @@ export const registerCompany = async (req, res) => {
     try {
         const companyExists = await Company.findOne({ email });
         if (companyExists) {
-            return res.json({ success: false, meassage: "Email Id id already Exist" })
+            return res.json({ success: false, meassage: "Email Id is already Exist" })
         }
         const salt = await bcrypt.genSalt(10);
         const hashPassword = await bcrypt.hash(password, salt)
@@ -106,7 +106,7 @@ export const postJob = async (req, res) => {
         res.json({ success: true, newJob })
     }
     catch (error) {
-        res.json({ success: true, message: error.messsage })
+        res.json({ success: false, message: error.messsage })
     }
 
 }

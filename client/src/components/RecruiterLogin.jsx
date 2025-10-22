@@ -88,7 +88,7 @@ const RecruiterLogin = () => {
                         <div className='flex items-center gap-4 my-10'>
                             <label htmlFor="image">
                                 <img className="w-16 rounded-full cursor-pointer" src={image ? URL.createObjectURL(image) : assets.upload_area} alt="" />
-                                <input id="image" accept=".png" onChange={async (e) => {
+                                <input id="image" accept=".png, .jpg, .jpeg" onChange={async (e) => {
                                     await setImage(e.target.files[0])
 
                                 }} type="file" hidden />
