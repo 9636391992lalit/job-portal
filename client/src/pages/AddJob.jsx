@@ -1,11 +1,13 @@
 /* eslint-disable no-empty */
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useRef, useState,useContext } from 'react'
+import React, { useEffect, useRef, useState, useContext } from 'react'
 import Quill from 'quill'
 import axios from 'axios'
-import {AppContext} from '../context/AppContext'
-import { JobCategories, JobLocations } from '../assets/assets'
-import {toast} from 'react-toastify'
+import { AppContext } from '../context/AppContext'
+import { JobCategories, JobLocations,JobLevels } from '../assets/assets'
+import { toast } from 'react-toastify'
+
+
 const AddJob = () => {
     const [title, setTitle] = useState('')
     const [location, setLocation] = useState('Banglore')
@@ -14,31 +16,29 @@ const AddJob = () => {
     const [salary, setSalary] = useState('0')
     const editorRef = useRef(null)
     const quillRef = useRef(null)
-    const {backendUrl,companyToken}=useContext(AppContext)
-    
-    const onSubmitHandler= async(e)=>
-    {
+    const { backendUrl, companyToken } = useContext(AppContext)
+
+    const onSubmitHandler = async (e) => {
         e.preventDefault()
 
-        try{
-            const description=quillRef.current.root.innerHTML
-            const {data}=await axios.post(backendUrl+'/api/company/post-job',
-                {title,description,location,salary,category,level},
-                {headers:{token:companyToken}}
+        try {
+            const description = quillRef.current.root.innerHTML
+            console.log({ title, description, location, salary, category, level });
+            const { data } = await axios.post(backendUrl + '/api/company/post-job',
+                { title, description, location, salary, category, level },
+                { headers: { token: companyToken } }
             )
-            if(data.success)
-            {
+            if (data.success) {
                 toast.success(data.message)
                 setTitle('')
                 setSalary(0)
-                quillRef.current.root.innerHTML=""
+                quillRef.current.root.innerHTML = ""
 
             }
             else
-            toast.error(data.message)
+                toast.error(data.message)
         }
-        catch(error)
-        {
+        catch (error) {
             toast.error(error.message)
         }
     }
@@ -63,9 +63,18 @@ const AddJob = () => {
             <div className='flex flex-cool sm:flex-row gap-2 w-full sm:gap-8'>
                 <div>
                     <p className='mb-2'>Job Category</p>
-                    <select className='w-full px-3 py-2 border-2 border-gray-300 rounded' onChange={e => setCategory(e.target.value)} id="">
-                        {JobCategories.map((category, index) => (<option value={category} key={index}>{category}</option>))}
+                    <select
+                        value={category}
+                        onChange={e => setCategory(e.target.value)}
+                        className='w-full px-3 py-2 border-2 border-gray-300 rounded appearance-auto'
+                    >
+                        {JobCategories.map((cat, index) => (
+                            <option value={cat} key={index}>
+                                {cat}
+                            </option>
+                        ))}
                     </select>
+
                 </div>
                 <div>
                     <p className='mb-2'>Job Location</p>
@@ -76,9 +85,7 @@ const AddJob = () => {
                 <div>
                     <p className='mb-2'>Job Level</p>
                     <select className='w-full px-3 py-2 border-2 border-gray-300 rounded' onChange={e => setLevel(e.target.value)} id="">
-                        <option value="Fresher level">Fresher level</option>
-                        <option value="Intermidiate level">Intermediate level</option>
-                        <option value="Seniour level">Expert Level</option>
+                        {JobLevels.map((level, index) => (<option value={level} key={index}>{level}</option>))}
                     </select>
                 </div>
             </div>

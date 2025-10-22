@@ -72,24 +72,51 @@ export const assets = {
     amazon_logo
 }
 
+ export const JobLevels = [
+   "Fresher level",
+   "Intermediate level",
+   "Senior level",
+   "Lead",
+   "Manager",
+   "Director",
+   "VP / Executive",
+ ];
+ 
 export const JobCategories = [
-    "Programming",
-    "Data Science",
-    "Designing",
-    "Networking",
-    "Management",
-    "Marketing",
-    "Cybersecurity",
-]
+  "Programming",
+  "Data Science",
+  "Designing",
+  "Networking",
+  "Management",
+  "Marketing",
+  "Cybersecurity",
+  "Finance",
+  
+  
+  
+ 
+  
+  
+  "DevOps",
+  
+  "UI/UX",
+  "Cloud Computing",
+];
+
 
 export const JobLocations = [
-    "Bangalore",
-    "Washington",
-    "Hyderabad",
-    "Mumbai",
-    "California",
-    "Chennai",
-    "New York"
+    "San Francisco",
+  "Seattle",
+  "Los Angeles",
+  "Bangalore",
+  "Hyderabad",
+  "Pune",
+  "Chennai",
+  "Mumbai",
+  "Gurgaon",
+  "Delhi",
+  "London",
+  
 ]
 
 // Sample data for Manage Jobs Page
