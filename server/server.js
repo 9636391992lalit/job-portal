@@ -10,6 +10,7 @@ import connectCloudinary from './config/cloudinary.js'
 import jobRoutes from './routes/JobRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import {clerkMiddleware} from '@clerk/express'
+import adminRoutes from './routes/adminRoutes.js';
 //Intilize express
 const app=express()
 
@@ -27,11 +28,11 @@ app.get("/debug-sentry", function mainHandler(req, res) {
 });
 
 app.post('/webhooks',clearksWebhooks)
-
+0
 app.use('/api/company',companyRoutes)
 app.use('/api/jobs',jobRoutes)
 app.use('/api/users',userRoutes)
-
+app.use('/api/admin', adminRoutes);
 //Port
 const PORT = process.env.PORT||5000
 

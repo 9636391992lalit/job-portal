@@ -19,7 +19,7 @@ const ApplyJob = () => {
     const navigate = useNavigate()
     const [JobData, setJobData] = useState(null)
     const [isAlreadyApplied, setIsAlreadyApplied] = useState(false)
-    
+
     // Context se save job functions aa gaye hain
     const { jobs, backendUrl, userData, userApplications, fetchUserApplications, handleSaveJob, savedJobs } = useContext(AppContext)
     const { user } = useUser()
@@ -45,6 +45,9 @@ const ApplyJob = () => {
             if (!userData) {
                 return toast.error('Login To apply for jobs')
             }
+            if (!userData) { // Check if user data from DB is loaded
+                return toast.warn('User data still loading, please wait...'); // Or handle differently
+            }
             if (!userData.resume) {
                 navigate('/applications')
                 return toast.error('Upload resume to apply')
@@ -57,6 +60,7 @@ const ApplyJob = () => {
             if (data.success) {
                 toast.success(data.message)
                 fetchUserApplications()
+                setIsAlreadyApplied(true);
             }
             else {
                 toast.error(data.message)
@@ -67,6 +71,7 @@ const ApplyJob = () => {
     }
 
     const checkAlreadyApplied = () => {
+        if (!JobData || !userApplications) return ;
         const hasApplied = userApplications.some(item => item.jobId?._id === JobData?._id) // Thoda safe check
         setIsAlreadyApplied(hasApplied)
     }
@@ -134,8 +139,8 @@ const ApplyJob = () => {
                                 <button
                                     onClick={() => handleSaveJob(JobData._id)}
                                     className={`flex items-center justify-center gap-2 w-full p-2.5 px-10 mt-2 rounded border ${isSaved
-                                            ? 'bg-blue-100 text-blue-700 border-blue-300'
-                                            : 'bg-gray-100 text-gray-800 border-gray-300'
+                                        ? 'bg-blue-100 text-blue-700 border-blue-300'
+                                        : 'bg-gray-100 text-gray-800 border-gray-300'
                                         }`}
                                 >
                                     {isSaved ? <BsBookmarkFill /> : <BsBookmark />}
@@ -152,7 +157,7 @@ const ApplyJob = () => {
                         <div className='w-full lg:w-2/3'>
                             <h2 className='font-bold text-2xl mb-4'>Job Description</h2>
                             <div className="rich-text" dangerouslySetInnerHTML={{ __html: JobData.description }}></div>
-                            
+
                             {/* Niche waala Apply button bhi update kiya gaya */}
                             <button
                                 onClick={applyHandler}
