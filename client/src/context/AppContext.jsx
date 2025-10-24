@@ -1,218 +1,253 @@
-import { createContext, useEffect, useState } from "react";
+import React, { createContext, useEffect, useState, useCallback } from "react";
 import axios from 'axios';
-import { useUser, useAuth, useClerk } from '@clerk/clerk-react'; // Import useClerk
+import { useUser, useAuth, useClerk } from '@clerk/clerk-react';
 import { toast } from 'react-toastify';
+import io from 'socket.io-client'; // Socket.io client import
 
-// eslint-disable-next-line react-refresh/only-export-components
+// Initialize Socket Connection
+const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const socket = io(SOCKET_SERVER_URL);
+
+// Create Context
 export const AppContext = createContext();
 
+// Context Provider Component
 export const AppContextProvider = (props) => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
-    
-    // --- Clerk User ---
+    // Backend URL
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+    // Clerk Authentication Hooks
     const { user } = useUser();
     const { getToken } = useAuth();
-    const { signOut } = useClerk(); // Get the signOut function from Clerk
+    const { signOut } = useClerk();
 
-    // --- State ---
-    const [searchFilter, setSearchFilter] = useState({
-        title: '',
-        location: ''
-    });
+    // Application State
+    const [searchFilter, setSearchFilter] = useState({ title: '', location: '' });
     const [isSearched, setIsSearched] = useState(false);
     const [jobs, setJobs] = useState([]);
     const [showRecruiterLogin, setShowRecruiterLogin] = useState(false);
-    
-    // --- Company (Recruiter) State ---
-    const [companyToken, setCompanyToken] = useState(null);
+    const [companyToken, setCompanyToken] = useState(localStorage.getItem('companyToken') || null);
     const [companyData, setCompanyData] = useState(null);
-    
-    // --- Clerk User State ---
     const [userData, setUserData] = useState(null);
     const [userApplications, setUserApplications] = useState([]);
-    const [savedJobs, setSavedJobs] = useState([]); // <-- NEW: Saved Jobs state
-    // --- Helper Function: Company Logout ---
-    const companyLogout = () => {
+    const [savedJobs, setSavedJobs] = useState([]);
+
+    // --- Logout Functions ---
+    const companyLogout = useCallback(() => {
         localStorage.removeItem('companyToken');
         setCompanyToken(null);
         setCompanyData(null);
-        toast.info("Your session has expired. Please log in again.");
-    };
+    }, []);
 
-    // --- Helper Function: Clerk User Logout ---
-    const userLogout = () => {
-        signOut(); // Tell Clerk to end its session
-        setUserData(null); // Clear our local user data
-        setUserApplications([]); // Clear our local application data
-        toast.info("Your session has expired. Please log in again.");
-    };
+    const userLogout = useCallback(() => {
+        signOut();
+        setUserData(null);
+        setUserApplications([]);
+        setSavedJobs([]);
+    }, [signOut]);
 
-    // --- API Function: Fetch Jobs (Public) ---
-    const fetchJobs = async () => {
+    // --- API Functions ---
+    const fetchJobs = useCallback(async () => {
         try {
-            const { data } = await axios.get(backendUrl + '/api/jobs');
+            const { data } = await axios.get(`${backendUrl}/api/jobs`);
             if (data.success) {
-                setJobs(data.jobs);
+                 setJobs(Array.isArray(data.jobs) ? data.jobs.slice().reverse() : []);
             } else {
-                toast.error(data.message);
+                toast.error(data.message || "Failed to fetch jobs.");
             }
         } catch (error) {
-            toast.error(error.message);
+            console.error("Error fetching jobs:", error);
+            toast.error(error.response?.data?.message || error.message || "Could not connect to fetch jobs.");
         }
-    };
+    }, [backendUrl]);
 
-    // --- API Function: Fetch Company Data (Protected) ---
-    const fetchCompanyData = async () => {
-        // Only run if there is a token
+    const fetchCompanyData = useCallback(async () => {
         if (!companyToken) return;
         try {
-            const { data } = await axios.get(backendUrl + '/api/company/company', {
+            const { data } = await axios.get(`${backendUrl}/api/company/company`, {
                 headers: { token: companyToken }
             });
             if (data.success) {
                 setCompanyData(data.company);
             } else {
-                toast.error(data.message);
-                companyLogout(); // <-- Logout on failure
+                toast.error(data.message || "Failed to fetch company data.");
+                companyLogout();
             }
         } catch (error) {
-            toast.error("Authentication failed. Please log in again.");
-            companyLogout(); // <-- Logout on error (e.g., 401 Unauthorized)
+            console.error("Error fetching company data:", error);
+            toast.error(error.response?.data?.message || "Authentication error. Please log in again.");
+            companyLogout();
         }
-    };
+    }, [backendUrl, companyToken, companyLogout]);
 
-    // --- API Function: Fetch User Data (Protected) ---
-    const fetchUserData = async () => {
-        try {
-            const token = await getToken(); 
-            if (!token) return; // Don't run if clerk has no token
-            const { data } = await axios.get(backendUrl + '/api/users/user', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (data.success) {
-                setUserData(data.user);
-            } else {
-                toast.error(data.message);
-                userLogout(); // <-- Logout on failure
-            }
-        } catch (error) {
-            toast.error("Authentication failed. Please log in again.");
-            userLogout(); // <-- Logout on error
-        }
-    };
-
-    // --- API Function: Fetch User Applications (Protected) ---
-    const fetchUserApplications = async () => {
-        try {
-            const token = await getToken();
-            if (!token) return; // Don't run if clerk has no token
-            const { data } = await axios.get(backendUrl + '/api/users/applications', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (data.success) {
-                setUserApplications(data.applications);
-            } else {
-                toast.error(data.message);
-                userLogout(); // <-- Logout on failure
-            }
-        } catch (error) {
-            toast.error("Could not fetch applications. Please log in again.");
-            userLogout(); // <-- Logout on error
-        }
-    };
-     const fetchSavedJobs = async () => {
+    const fetchUserData = useCallback(async () => {
         try {
             const token = await getToken();
             if (!token) return;
-
-            const { data } = await axios.get(backendUrl + '/api/users/saved-jobs', {
+            const { data } = await axios.get(`${backendUrl}/api/users/user`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
             if (data.success) {
-                setSavedJobs(data.savedJobs);
+                setUserData(data.user);
             } else {
-                // Logout nahi karenge, bas error dikhayenge
-                toast.error(data.message);
+                toast.error(data.message || "Failed to fetch user profile.");
+                if (data.message && data.message.toLowerCase().includes('not found')) {
+                     console.warn("User data not found in DB for logged-in Clerk user.");
+                     setUserData(null);
+                } else {
+                     userLogout();
+                }
             }
         } catch (error) {
-            toast.error("Could not fetch saved jobs.");
+            console.error("Error fetching user data:", error);
+            toast.error(error.response?.data?.message || "Authentication error fetching profile.");
+            userLogout();
         }
-    };
-    const handleSaveJob = async (jobId) => {
+    }, [backendUrl, getToken, userLogout]);
+
+    const fetchUserApplications = useCallback(async () => {
+        try {
+            const token = await getToken();
+            if (!token) return;
+            const { data } = await axios.get(`${backendUrl}/api/users/applications`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (data.success) {
+                setUserApplications(Array.isArray(data.applications) ? data.applications : []);
+            } else {
+                toast.error(data.message || "Failed to fetch applications.");
+                // Error check moved to catch block
+            }
+        } catch (error) { // 'error' is defined here
+            console.error("Error fetching user applications:", error);
+            toast.error(error.response?.data?.message || "Error fetching applications.");
+             // Check the error status HERE inside the catch block
+             if (error.response?.status === 401 || error.response?.status === 403) {
+                 userLogout();
+             }
+        }
+    }, [backendUrl, getToken, userLogout]);
+
+    const fetchSavedJobs = useCallback(async () => {
+        try {
+            const token = await getToken();
+            if (!token) return;
+            const { data } = await axios.get(`${backendUrl}/api/users/saved-jobs`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (data.success) {
+                setSavedJobs(Array.isArray(data.savedJobs) ? data.savedJobs : []);
+            } else {
+                toast.error(data.message || "Failed to fetch saved jobs.");
+                // Error check moved to catch block
+            }
+        } catch (error) { // 'error' is defined here
+            console.error("Error fetching saved jobs:", error);
+            toast.error(error.response?.data?.message || "Error fetching saved jobs.");
+             // Check the error status HERE inside the catch block
+             if (error.response?.status === 401 || error.response?.status === 403) {
+                  userLogout();
+             }
+        }
+    }, [backendUrl, getToken, userLogout]);
+
+    const handleSaveJob = useCallback(async (jobId) => {
         if (!user) {
-            toast.error("Please log in to save jobs");
+            toast.error("Please log in to save jobs.");
             return;
         }
         try {
             const token = await getToken();
-            const { data } = await axios.post(backendUrl + '/api/users/save-job',
-                { jobId }, // body mein jobId bhejein
+            const { data } = await axios.post(`${backendUrl}/api/users/save-job`,
+                { jobId },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-
             if (data.success) {
                 toast.success(data.message);
-                // Saved jobs ko re-fetch karein taaki UI update ho
                 await fetchSavedJobs();
             } else {
-                toast.error(data.message);
+                toast.error(data.message || "Failed to update saved job.");
             }
         } catch (error) {
-            toast.error(error.message);
+            console.error("Error saving/unsaving job:", error);
+            toast.error(error.response?.data?.message || error.message || "Could not save/unsave job.");
+             if (error.response?.status === 401 || error.response?.status === 403) {
+                  userLogout();
+             }
         }
-    };
-    // --- Effects ---
+    }, [user, backendUrl, getToken, fetchSavedJobs, userLogout]);
 
-    // Initial load for jobs and checking for company token
+    // --- Effects ---
     useEffect(() => {
+        console.log("AppContext mounted. Setting up initial fetch and socket.");
         fetchJobs();
-        const storedCompanyToken = localStorage.getItem('companyToken');
-        if (storedCompanyToken) {
-            setCompanyToken(storedCompanyToken);
-        }
-    }, []);
-    
-    // Fetch company data when token is set
+
+        const handleNewJob = (newJob) => {
+            console.log('Received new job via socket:', newJob);
+            setJobs(prevJobs => {
+                if (prevJobs.some(job => job._id === newJob._id)) {
+                    return prevJobs;
+                }
+                return [newJob, ...prevJobs];
+            });
+            toast.info(`✨ New Job Posted: ${newJob.title}`);
+        };
+        const handleConnect = () => console.log('🔗 Connected to Socket.io server');
+        const handleDisconnect = (reason) => console.warn(`🔌 Disconnected from Socket.io server: ${reason}`);
+        const handleConnectError = (error) => console.error(`❌ Socket connection error: ${error.message}`);
+
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        socket.on('connect_error', handleConnectError);
+        socket.on('newJobPosted', handleNewJob);
+
+        return () => {
+            console.log("Cleaning up AppContext mount effect & socket listeners...");
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.off('connect_error', handleConnectError);
+            socket.off('newJobPosted', handleNewJob);
+        };
+    }, [fetchJobs]);
+
     useEffect(() => {
+        const storedCompanyToken = localStorage.getItem('companyToken');
+        if (storedCompanyToken && !companyToken) { // Set token only if not already set
+             setCompanyToken(storedCompanyToken);
+        }
         if (companyToken) {
             fetchCompanyData();
         } else {
-            // Clear data if token becomes null
             setCompanyData(null);
         }
-    }, [companyToken]);
+    }, [companyToken, fetchCompanyData]);
 
-    // Fetch user data when Clerk user is detected
     useEffect(() => {
         if (user) {
+            console.log("Clerk user detected, fetching user data...");
             fetchUserData();
             fetchUserApplications();
             fetchSavedJobs();
         } else {
-            // Clear data if Clerk user is null
+            console.log("Clerk user cleared, resetting user state.");
             setUserData(null);
             setUserApplications([]);
             setSavedJobs([]);
         }
-    }, [user]); // Re-run when the Clerk user object changes
+    }, [user, fetchUserData, fetchUserApplications, fetchSavedJobs]);
 
-    // --- Context Value ---
+    // --- Provide Context Value ---
     const value = {
-        setSearchFilter, searchFilter,
-        isSearched, setIsSearched,
-        jobs, setJobs,
-        showRecruiterLogin, setShowRecruiterLogin,
-        companyToken, setCompanyToken,
-        companyData, setCompanyData,
+        searchFilter, isSearched, jobs, showRecruiterLogin,
+        companyToken, companyData,
+        userData, userApplications, savedJobs,
+        setSearchFilter, setIsSearched, setJobs, setShowRecruiterLogin,
+        setCompanyToken, // Keep if needed for direct setting outside login
+        setUserData, setUserApplications, setSavedJobs, // Usually not needed directly
+         setCompanyData,
+        fetchUserData, fetchUserApplications, fetchSavedJobs, handleSaveJob,
+        companyLogout, userLogout,
         backendUrl,
-        userData, setUserData,
-        userApplications, setUserApplications,
-        fetchUserData, fetchUserApplications,
-        companyLogout ,// <-- Expose the companyLogout function
-        savedJobs,
-        handleSaveJob
     };
 
     return (

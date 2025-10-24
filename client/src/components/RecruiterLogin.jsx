@@ -58,6 +58,7 @@ const RecruiterLogin = () => {
         if (state === "Login") {
             try {
                 const { data } = await axios.post(backendUrl + '/api/company/login', { email, password });
+                console.log(data)
                 if (data.success && data.token) { // Check for token specifically
                     toast.success("Login Successful!");
                     setCompanyData(data.company);

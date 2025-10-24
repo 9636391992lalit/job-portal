@@ -7,7 +7,7 @@ import Job from "../models/Job.js"
 export const getUserData = async (req, res) => {
     const { userId } = req.auth();   // Clerk userId (string)
     try {
-        console.log('User Id is from login user',userId)
+        console.log('User Id is from login user', userId)
         const user = await User.findById(userId)
         if (!user) {
             return res.json({ success: false, message: 'User not found' })
@@ -25,8 +25,8 @@ export const applyForJob = async (req, res) => {
     const { jobId } = req.body
     const userId = req.auth.userId
     try {
-        const isAlreadyApplied = await JobApplication.find({ jobId, userId })
-        if (isAlreadyApplied.length > 0) {
+        const isAlreadyApplied = await JobApplication.findOne({ jobId, userId })
+        if (isAlreadyApplied) {
             return res.json({ success: false, message: 'Alredy Applied' })
         }
 
@@ -72,14 +72,27 @@ export const updateUserResume = async (req, res) => {
     try {
         const userId = req.auth.userId
         const resumeFile = req.file
-       
+
         const userData = await User.findById(userId)
+        const oldResumeUrl = userData.resume;
         if (resumeFile) {
             const resumeUpload = await cloudinary.uploader.upload(resumeFile.path)
             console.log(resumeUpload.secure_url)
             userData.resume = resumeUpload.secure_url
+
         }
         await userData.save()
+        if (oldResumeUrl) {
+            const publicId = oldResumeUrl.split('/').pop().split('.')[0];
+            const fileParts = oldResumeUrl.split('/');
+            const publicIdWithFolder = fileParts.slice(-2).join('/').split('.')[0];
+            try {
+                // Use 'raw' resource_type for non-image files like PDFs
+                await cloudinary.uploader.destroy(publicIdWithFolder, { resource_type: 'raw' });
+            } catch (delError) {
+                console.error("Failed to delete old resume:", delError.message);
+            }
+        }
         return res.json({ success: true, message: 'Resume Updated' })
     }
     catch (error) {
@@ -126,7 +139,7 @@ export const toggleSaveJob = async (req, res) => {
 export const getSavedJobs = async (req, res) => {
     try {
         const { userId } = getAuth(req); // Clerk se user ID
-        
+
         // User ko find karein aur 'savedJobs' field ko populate karein
         // Populate se humein sirf ID nahi, poori job details mil jayengi
         const user = await User.findById(userId).populate({

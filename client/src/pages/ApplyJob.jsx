@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { AppContext } from '../context/AppContext'
 import Loading from '../components/Loading'
 import Navbar from '../components/Navbar'
@@ -71,7 +71,7 @@ const ApplyJob = () => {
     }
 
     const checkAlreadyApplied = () => {
-        if (!JobData || !userApplications) return ;
+        if (!JobData || !userApplications) return;
         const hasApplied = userApplications.some(item => item.jobId?._id === JobData?._id) // Thoda safe check
         setIsAlreadyApplied(hasApplied)
     }
@@ -104,7 +104,9 @@ const ApplyJob = () => {
                                     {/* ... baaki job details ... */}
                                     <span className='flex items-center gap-1'>
                                         <img src={assets.suitcase_icon} alt="" />
-                                        {JobData.companyId.name}
+                                        <Link to={`/company/${JobData.companyId._id}`} className="hover:underline">
+                                            {JobData.companyId.name}
+                                        </Link>
                                     </span>
                                     <span className='flex items-center gap-1'>
                                         <img src={assets.location_icon} alt="" />

@@ -11,7 +11,7 @@ import { toast } from 'react-toastify'
 const AddJob = () => {
     const [title, setTitle] = useState('')
     const [location, setLocation] = useState('Banglore')
-    const [category, setCategory] = useState('Full Stack')
+    const [category, setCategory] = useState('Programming')
     const [level, setLevel] = useState('Fresher')
     const [salary, setSalary] = useState('0')
     const editorRef = useRef(null)

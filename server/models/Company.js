@@ -16,6 +16,22 @@ const companySchema = new mongoose.Schema({
         type: String,
         enum: ['Pending', 'Approved', 'Rejected'],
         default: 'Pending' // Or set default based on your logic, but 'Approved' makes sense here
+    },
+    description: {
+        type: String,
+        default: '' // Default to an empty string
+    },
+    industry: {
+        type: String,
+        default: '' // Default to an empty string
+    },
+    location: {
+        type: String,
+        default: '' // Default to an empty string
+    },
+    companySize: {
+        type: String,
+        default: '' // e.g., "1-50", "51-200"
     }
     // ---------------------------
 

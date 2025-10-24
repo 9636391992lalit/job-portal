@@ -5,7 +5,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import generateToken from '../utils/generateToken.js'; // Assuming this utility exists and works
 import Job from '../models/Job.js';
 import JobApplication from '../models/JobApplication.js';
-
+import { io } from '../server.js';
 // --- Register a new Company (saves to Pending) ---
 export const registerCompany = async (req, res) => {
     const { name, email, password, website, domain, cin } = req.body;
@@ -42,8 +42,8 @@ export const registerCompany = async (req, res) => {
 
         // Upload image
         const imageUpload = await cloudinary.uploader.upload(imageFile.path, {
-             folder: "company_logos", // Optional: organize uploads
-             // transformation: [{ width: 200, height: 200, crop: "limit" }] // Optional: resize image
+            folder: "company_logos", // Optional: organize uploads
+            // transformation: [{ width: 200, height: 200, crop: "limit" }] // Optional: resize image
         });
 
         // Create entry in PendingCompany collection
@@ -65,10 +65,10 @@ export const registerCompany = async (req, res) => {
 
     } catch (error) {
         console.error("Error during company registration submission:", error);
-         // Handle potential Cloudinary upload errors specifically if needed
-         if (error.http_code && error.http_code >= 400) {
-              return res.status(500).json({ success: false, message: "Image upload failed. Please try again." });
-         }
+        // Handle potential Cloudinary upload errors specifically if needed
+        if (error.http_code && error.http_code >= 400) {
+            return res.status(500).json({ success: false, message: "Image upload failed. Please try again." });
+        }
         res.status(500).json({ success: false, message: "Registration failed due to a server error. Please try again." });
     }
 };
@@ -131,32 +131,137 @@ export const loginCompany = async (req, res) => {
     }
 };
 
+
+export const updateCompanyProfile = async (req, res) => {
+    try {
+        // 1. Get company ID from the token (provided by protectCompany middleware)
+        console.log(req);
+        const companyId = req.company._id;
+
+        // 2. Get the new data from the request body
+        const { description, industry, location, companySize } = req.body;
+
+        // 3. Find the company
+        const company = await Company.findById(companyId);
+
+        if (!company) {
+            return res.status(404).json({ success: false, message: "Company not found." });
+        }
+
+        // 4. Update the fields
+        if (description !== undefined) company.description = description;
+        if (industry !== undefined) company.industry = industry;
+        if (location !== undefined) company.location = location;
+        if (companySize !== undefined) company.companySize = companySize;
+
+        // 5. Save the updated company
+        await company.save();
+
+        // 6. Send back the updated company data (this updates the frontend context)
+        const updatedCompanyData = {
+            _id: company._id,
+            name: company.name,
+            email: company.email,
+            image: company.image,
+            website: company.website,
+            domain: company.domain,
+            isVerified: company.isVerified,
+            status: company.status,
+            description: company.description,
+            industry: company.industry,
+            location: company.location,
+            companySize: company.companySize
+        };
+
+        res.json({
+            success: true,
+            message: "Profile updated successfully!",
+            company: updatedCompanyData
+        });
+
+    } catch (error) {
+        console.error("Error updating company profile:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
 // --- Get Logged-in Company Data ---
+export const getPublicCompanyProfile = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // 1. Fetch Company Public Details
+        // We use .select() to EXCLUDE sensitive data
+        const company = await Company.findById(id)
+            .select('name image website description industry location companySize');
+
+        if (!company) {
+            return res.json({ success: false, message: "Company not found." });
+        }
+
+        // 2. Fetch all VISIBLE jobs for this company
+        const jobs = await Job.find({ companyId: id, visible: true })
+            .populate('companyId', 'name image') // We still need companyId for JobCard
+            .sort({ date: -1 });
+
+        // 3. Calculate Hiring & Activity Stats (Your Unique Feature!)
+        const totalApplications = await JobApplication.countDocuments({ companyId: id });
+        const totalHires = await JobApplication.countDocuments({
+            companyId: id,
+            status: 'Accepted'
+        });
+
+        // This stat is great for users: it shows if the company is active
+        const totalResponded = await JobApplication.countDocuments({
+            companyId: id,
+            status: { $in: ['Accepted', 'Rejected'] } // Count all "final" decisions
+        });
+
+        const responseRate = (totalApplications > 0)
+            ? Math.round((totalResponded / totalApplications) * 100)
+            : 0; // Avoid dividing by zero
+
+        // Send all the data back
+        res.json({
+            success: true,
+            company: company,
+            jobs: jobs,
+            stats: {
+                totalJobs: jobs.length,
+                totalHires: totalHires, // "how much of the people get hired"
+                responseRate: responseRate  // "Application Response Rate"
+            }
+        });
+
+    } catch (error) {
+        console.error("Error fetching public company profile:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
 export const getCompanyData = async (req, res) => {
     try {
         // req.company is attached by the protectCompany middleware
         const company = req.company;
 
         if (!company) {
-             // This case might happen if the token is valid but the company was deleted
-             return res.status(404).json({ success: false, message: "Company data not found for this token." });
+            // This case might happen if the token is valid but the company was deleted
+            return res.status(404).json({ success: false, message: "Company data not found for this token." });
         }
 
         // Return relevant, non-sensitive company details
         res.json({
             success: true,
             company: {
-                 _id: company._id,
-                 name: company.name,
-                 email: company.email,
-                 image: company.image,
-                 website: company.website,
-                 domain: company.domain,
-                 // Maybe add description, industry, companySize, hqLocation later
-                 isVerified: company.isVerified,
-                 status: company.status, // Good to know the status
-                 createdAt: company.createdAt, // Timestamps can be useful
-                 updatedAt: company.updatedAt
+                _id: company._id,
+                name: company.name,
+                email: company.email,
+                image: company.image,
+                website: company.website,
+                domain: company.domain,
+                // Maybe add description, industry, companySize, hqLocation later
+                isVerified: company.isVerified,
+                status: company.status, // Good to know the status
+                createdAt: company.createdAt, // Timestamps can be useful
+                updatedAt: company.updatedAt
             }
         });
     } catch (error) {
@@ -170,7 +275,7 @@ export const postJob = async (req, res) => {
     // --- Check Company Status ---
     // Ensure the company making the request is approved
     if (req.company?.status !== 'Approved') {
-         return res.status(403).json({ success: false, message: "Your company account is not approved to post jobs." });
+        return res.status(403).json({ success: false, message: "Your company account is not approved to post jobs." });
     }
     // ---------------------------------
 
@@ -199,6 +304,13 @@ export const postJob = async (req, res) => {
             category
             // 'visible' defaults to true in the Job model
         });
+        // --- NEW: Emit the event after successful creation ---
+        // We need to populate company details before sending to clients
+        const jobToSend = await Job.findById(newJob._id).populate('companyId', 'name image isVerified'); // Populate necessary fields
+        if (jobToSend) {
+            io.emit('newJobPosted', jobToSend); // Send the newly created job data to ALL connected clients
+            console.log(`🚀 Emitted newJobPosted: ${jobToSend.title}`);
+        }
         res.status(201).json({ success: true, message: "Job posted successfully!", newJob });
     } catch (error) {
         console.error("Error posting job:", error);
@@ -232,7 +344,7 @@ export const getCompanyJobApplicants = async (req, res) => {
 
 // --- Get Company Posted Jobs ---
 export const getCompanyPostedJobs = async (req, res) => {
-     // Ensure company is approved
+    // Ensure company is approved
     if (req.company?.status !== 'Approved') {
         return res.status(403).json({ success: false, message: "Account not approved to view jobs." });
     }
@@ -274,7 +386,7 @@ export const ChangeJobApplicationsStatus = async (req, res) => {
         // Validate the status value
         const validStatuses = ['Pending', 'Viewed', 'Under Review', 'Shortlisted', 'Accepted', 'Rejected']; // Add more as needed
         if (!validStatuses.includes(status)) {
-             return res.status(400).json({ success: false, message: "Invalid status value provided." });
+            return res.status(400).json({ success: false, message: "Invalid status value provided." });
         }
 
         // Find the application and ensure it belongs to the logged-in company
@@ -285,7 +397,7 @@ export const ChangeJobApplicationsStatus = async (req, res) => {
         );
 
         if (!updatedApplication) {
-             return res.status(404).json({ success: false, message: 'Application not found or you do not have permission to modify it.' });
+            return res.status(404).json({ success: false, message: 'Application not found or you do not have permission to modify it.' });
         }
 
         // Optional: Notify the user about the status change via email or notification system
@@ -300,7 +412,7 @@ export const ChangeJobApplicationsStatus = async (req, res) => {
 
 // --- Change Job Visibility ---
 export const changeVisiblity = async (req, res) => {
-     // Ensure company is approved
+    // Ensure company is approved
     if (req.company?.status !== 'Approved') {
         return res.status(403).json({ success: false, message: "Account not approved to change job visibility." });
     }
@@ -309,14 +421,14 @@ export const changeVisiblity = async (req, res) => {
         const companyId = req.company._id;
 
         if (!id) {
-             return res.status(400).json({ success: false, message: "Job ID is required." });
+            return res.status(400).json({ success: false, message: "Job ID is required." });
         }
 
         // Find the job and ensure it belongs to the logged-in company
         const job = await Job.findOne({ _id: id, companyId: companyId });
 
         if (!job) {
-             return res.status(404).json({ success: false, message: 'Job not found or you do not have permission to modify it.' });
+            return res.status(404).json({ success: false, message: 'Job not found or you do not have permission to modify it.' });
         }
 
         // Toggle visibility
