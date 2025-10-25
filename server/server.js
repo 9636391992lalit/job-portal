@@ -72,3 +72,4 @@ httpServer.listen(PORT, () => {
 });
 
 export { io }; // Export io if needed elsewhere
+export default httpServer;
