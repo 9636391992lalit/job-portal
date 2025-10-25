@@ -11,56 +11,64 @@ import jobRoutes from './routes/JobRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import {clerkMiddleware} from '@clerk/express'
 import adminRoutes from './routes/adminRoutes.js';
-// --- NEW: Socket.io Imports ---
-import { createServer } from 'http'; // Node's built-in HTTP module
-import { Server } from 'socket.io';   // Socket.io Server class
-//Intilize express
-const app=express()
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
-//Midleware
-
-// --- NEW: Create HTTP server and Socket.io server ---
+const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:5173", // Your frontend URL
+        origin: process.env.CLIENT_URL || "http://localhost:5173",
         methods: ["GET", "POST"]
     }
 });
-app.use(cors())
-app.use(express.json())
-app.use(clerkMiddleware())
-//Connect to Database
-await connectDB()
-await connectCloudinary()
-//Routes
-app.get('/',(req,res)=>res.send("API Working"))
-app.get("/debug-sentry", function mainHandler(req, res) {
-  throw new Error("My first Sentry error!");
-});
 
-app.post('/webhooks',clearksWebhooks)
-app.use('/api/company',companyRoutes)
-app.use('/api/jobs',jobRoutes)
-app.use('/api/users',userRoutes)
+// --- Basic Middleware ---
+app.use(cors());
+// IMPORTANT: Use express.json() for all routes, including webhooks
+app.use(express.json()); 
+
+// --- Database & Cloudinary Connection ---
+// It's generally better to connect *before* defining routes that might use the DB
+await connectDB();
+await connectCloudinary();
+
+// --- PUBLIC & WEBHOOK ROUTES (Define BEFORE Clerk Middleware) ---
+app.get('/', (req, res) => res.send("API Working"));
+app.get("/debug-sentry", (req, res) => { throw new Error("My first Sentry error!"); });
+
+// **Clerk webhook MUST come before clerkMiddleware**
+app.post('/webhooks', clearksWebhooks); 
+
+// **Public job listing route MUST come before clerkMiddleware**
+app.use('/api/jobs', jobRoutes); 
+// **Add any other public routes here (e.g., public company profiles)**
+// app.use('/api/company/public', publicCompanyRoutes); // Example
+
+// --- CLERK MIDDLEWARE (Applies to all routes BELOW this line) ---
+app.use(clerkMiddleware()); 
+
+// --- PROTECTED ROUTES (Require Authentication) ---
+app.use('/api/company', companyRoutes); // Assumes protected company routes are here
+app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
-//Port
+
+// --- Socket.io Connection Logic ---
 io.on('connection', (socket) => {
     console.log(`🟢 User connected: ${socket.id}`);
-
-    // Handle disconnection
     socket.on('disconnect', () => {
         console.log(`🔴 User disconnected: ${socket.id}`);
     });
     socket.on('error', (error) => {
         console.error(`❌ Socket Error for ${socket.id}:`, error);
     });
-    // You can add more specific event listeners here if needed later
 });
-const PORT = process.env.PORT||5000
 
-Sentry.setupExpressErrorHandler(app);
+// --- Error Handling & Server Start ---
+const PORT = process.env.PORT || 5000;
+Sentry.setupExpressErrorHandler(app); // Sentry error handler should be after routes, before default handler
 httpServer.listen(PORT, () => {
     console.log(`🚀 Server with Socket.io is running at http://localhost:${PORT}`);
 });
-export { io };
+
+export { io }; // Export io if needed elsewhere

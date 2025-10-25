@@ -42,7 +42,7 @@ const ApplyJob = () => {
         // Yeh function waisa hi hai jaisa aapne diya tha
         console.log("User Data", userData);
         try {
-            if (!userData) {
+            if (!user) {
                 return toast.error('Login To apply for jobs')
             }
             if (!userData) { // Check if user data from DB is loaded

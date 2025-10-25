@@ -329,8 +329,8 @@ export const getCompanyJobApplicants = async (req, res) => {
         // Find job applications linked to this company
         // Populate user details (select only needed fields) and job details
         const applications = await JobApplication.find({ companyId })
-            .populate('userId', 'name image resume') // Select specific user fields
-            .populate('jobId', 'title location category level salary') // Select specific job fields
+            .populate('userId', 'name image email resume headline location skills experience education portfolioLink linkedinLink') // Select specific user fields
+            .populate('jobId', 'title location') // Select specific job fields
             .sort({ date: -1 }) // Show newest applications first
             .exec();
 

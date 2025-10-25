@@ -5,7 +5,7 @@ import User from "../models/User.js";
 export  const clearksWebhooks=async(req,res)=>{
     try
     {
-     console.log("Headers:", req.headers);
+     console.log("Headers:", req);
      //Create a svix instance with  clear webhook secret.
      const whook = new Webhook (process.env.CLERK_WEBHOOK_SECRET)
      

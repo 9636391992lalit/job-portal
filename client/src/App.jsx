@@ -21,6 +21,8 @@ import SavedJobs from './pages/SavedJobs'
 import CompanyProtectedRoute from './components/CompanyProtectedRoute';
 import CompanyProfile from './pages/CompanyProfile';
 import CompanyProfileSettings from './pages/CompanyProfileSettings';
+import ApplicantProfile from './pages/ApplicantProfile'; // <-- 1. Import Recruiter Page
+import MyProfile from './pages/MyProfile';
 const App = () => {
   const { showRecruiterLogin  } = useContext(AppContext)
   return (
@@ -35,6 +37,9 @@ const App = () => {
         <Route path='/applications' element={<Applications />} />
         <Route path='/saved-jobs' element={<SavedJobs />} />
         <Route path='/company/:id' element={<CompanyProfile />} />
+        {/* --- 3. ADD NEW ROUTES --- */}
+                <Route path='/applicant/:id' element={<ApplicantProfile />} />
+                <Route path='/my-profile' element={<MyProfile />} />
         <Route element={<CompanyProtectedRoute />}>
           <Route path='/dashboard' element={<Dashboard />}>
             <Route path='add-job' element={<AddJob />} />

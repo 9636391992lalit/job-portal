@@ -1,129 +1,152 @@
-//Get user data
-import User from "../models/User.js"
-import { getAuth } from "@clerk/express";
-import JobApplication from "../models/JobApplication.js"
-import { v2 as cloudinary } from "cloudinary"
-import Job from "../models/Job.js"
-export const getUserData = async (req, res) => {
-    const { userId } = req.auth();   // Clerk userId (string)
-    try {
-        console.log('User Id is from login user', userId)
-        const user = await User.findById(userId)
-        if (!user) {
-            return res.json({ success: false, message: 'User not found' })
-        }
-        res.json({ success: true, user })
-    }
-    catch (error) {
-        res.json({ success: false, message: error.message })
-    }
+// controllers/userControllers.js
 
-}
+// --- ALL IMPORTS AT THE TOP (ONCE EACH) ---
+import User from "../models/User.js";
+import { getAuth } from "@clerk/express"; // Changed from @clerk/backend to @clerk/express based on previous context
+import JobApplication from "../models/JobApplication.js";
+import { v2 as cloudinary } from "cloudinary";
+import Job from "../models/Job.js";
+// --- END IMPORTS ---
+
+
+// --- CONTROLLER FUNCTIONS ---
+
+// Get user data for the logged-in user
+export const getUserData = async (req, res) => {
+    try {
+        // Correct way to get userId from req.auth populated by clerkMiddleware
+        const userId = req.auth.userId; 
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+        console.log('User Id from authenticated user:', userId);
+        
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found in database' });
+        }
+        res.json({ success: true, user });
+    } catch (error) {
+        console.error("Error in getUserData:", error);
+        res.status(500).json({ success: false, message: "Server error fetching user data." });
+    }
+};
+
 // Apply for a job
 export const applyForJob = async (req, res) => {
-
-    const { jobId } = req.body
-    const userId = req.auth.userId
     try {
-        const isAlreadyApplied = await JobApplication.findOne({ jobId, userId })
-        if (isAlreadyApplied) {
-            return res.json({ success: false, message: 'Alredy Applied' })
+        const { jobId } = req.body;
+        const userId = req.auth.userId; // Get userId from authenticated request
+        
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+        if (!jobId) {
+             return res.status(400).json({ success: false, message: 'Job ID is required' });
         }
 
-        const jobData = await Job.findById(jobId)
+        // Check if job exists and is visible
+        const jobData = await Job.findOne({ _id: jobId, visible: true });
         if (!jobData) {
-            return res.json({ success: false, message: 'Job Not found' })
+            return res.status(404).json({ success: false, message: 'Job not found or is no longer available' });
         }
+
+        // Check if already applied
+        const isAlreadyApplied = await JobApplication.findOne({ jobId, userId });
+        if (isAlreadyApplied) {
+            return res.status(400).json({ success: false, message: 'You have already applied for this job' });
+        }
+
+        // Create the application
         await JobApplication.create({
             companyId: jobData.companyId,
             userId,
             jobId,
             date: Date.now()
-        })
-        res.json({ success: true, message: 'Applied Successfully' })
+        });
+        res.status(201).json({ success: true, message: 'Applied Successfully' }); // Use 201 for creation
+    } catch (error) {
+        console.error("Error in applyForJob:", error);
+        res.status(500).json({ success: false, message: "Server error applying for job." });
     }
-    catch (error) {
-        res.json({
-            success: false, message: error.message
-        })
-    }
+};
 
-}
-
-//Get user applied application
+// Get user applied applications
 export const getUserJobApplication = async (req, res) => {
     try {
-        const userId = req.auth.userId
-        const applications = await JobApplication.find({ userId })
-            .populate('companyId', 'name email image')
-            .populate('jobId', 'title description location category level salary').
-            exec()
-        if (!applications) {
-            return res.json({ success: false, message: 'No job application form for this user. ' })
+        const userId = req.auth.userId;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
-        return res.json({ success: true, applications })
+        
+        // Find applications and populate related data
+        const applications = await JobApplication.find({ userId })
+            .populate('companyId', 'name image') // Populate specific company fields
+            .populate('jobId', 'title location') // Populate specific job fields
+            .sort({ date: -1 }) // Sort by newest first
+            .exec();
+            
+        // No need to check !applications, an empty array is valid
+        res.json({ success: true, applications });
+    } catch (error) {
+        console.error("Error in getUserJobApplication:", error);
+        res.status(500).json({ success: false, message: "Server error fetching applications." });
     }
-    catch (error) {
-        res.json({ success: false, message: error.message })
-    }
-}
+};
+
 // Update user profile (resume)
 export const updateUserResume = async (req, res) => {
     try {
         const userId = req.auth.userId
         const resumeFile = req.file
-
+       
         const userData = await User.findById(userId)
-        const oldResumeUrl = userData.resume;
         if (resumeFile) {
             const resumeUpload = await cloudinary.uploader.upload(resumeFile.path)
             console.log(resumeUpload.secure_url)
             userData.resume = resumeUpload.secure_url
-
         }
         await userData.save()
-        if (oldResumeUrl) {
-            const publicId = oldResumeUrl.split('/').pop().split('.')[0];
-            const fileParts = oldResumeUrl.split('/');
-            const publicIdWithFolder = fileParts.slice(-2).join('/').split('.')[0];
-            try {
-                // Use 'raw' resource_type for non-image files like PDFs
-                await cloudinary.uploader.destroy(publicIdWithFolder, { resource_type: 'raw' });
-            } catch (delError) {
-                console.error("Failed to delete old resume:", delError.message);
-            }
-        }
         return res.json({ success: true, message: 'Resume Updated' })
     }
     catch (error) {
         res.json({ success: false, message: error.message })
     }
 }
+
+// Toggle saving/unsaving a job
 export const toggleSaveJob = async (req, res) => {
     try {
         const { jobId } = req.body;
-        const { userId } = getAuth(req); // Clerk se user ID
+        const userId = req.auth.userId;
 
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
         if (!jobId) {
             return res.status(400).json({ success: false, message: 'Job ID is required' });
         }
 
         const user = await User.findById(userId);
-
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
+        
+        // Ensure job exists (optional but good practice)
+        const jobExists = await Job.findById(jobId);
+        if (!jobExists) {
+             return res.status(404).json({ success: false, message: 'Job not found' });
+        }
 
-        // Check karein ki job already saved hai ya nahi
         const jobIndex = user.savedJobs.indexOf(jobId);
 
         if (jobIndex > -1) {
-            // Agar already saved hai, toh array se nikaal dein (Unsave)
+            // Unsave
             user.savedJobs.pull(jobId);
             await user.save();
             res.json({ success: true, message: 'Job removed from saved list' });
         } else {
-            // Agar saved nahi hai, toh array mein add kar dein (Save)
+            // Save
             user.savedJobs.push(jobId);
             await user.save();
             res.json({ success: true, message: 'Job saved successfully!' });
@@ -131,22 +154,25 @@ export const toggleSaveJob = async (req, res) => {
 
     } catch (error) {
         console.error("Error in toggleSaveJob:", error);
-        res.status(500).json({ success: false, message: "Server error, please try again." });
+        res.status(500).json({ success: false, message: "Server error saving/unsaving job." });
     }
 };
 
-// <-- NEW: User ke saare saved jobs laane ka logic -->
+// Get user's saved jobs
 export const getSavedJobs = async (req, res) => {
     try {
-        const { userId } = getAuth(req); // Clerk se user ID
+        const userId = req.auth.userId;
+         if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
 
-        // User ko find karein aur 'savedJobs' field ko populate karein
-        // Populate se humein sirf ID nahi, poori job details mil jayengi
+        // Find user and populate saved jobs with company details
         const user = await User.findById(userId).populate({
             path: 'savedJobs',
+            match: { visible: true }, // Only populate jobs that are still visible
             populate: {
-                path: 'companyId', // Har job ke saath uski company details bhi laayein
-                select: '-password' // Security ke liye company ka password na laayein
+                path: 'companyId',
+                select: 'name image' // Select specific company fields
             }
         });
 
@@ -154,12 +180,74 @@ export const getSavedJobs = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // Saved jobs ko reverse order mein bhejein (latest sabse pehle)
-        const savedJobs = user.savedJobs.reverse();
-        res.json({ success: true, savedJobs });
+        // Filter out any null entries from savedJobs if a job was deleted/became invisible
+        const validSavedJobs = user.savedJobs.filter(job => job !== null);
+
+        res.json({ success: true, savedJobs: validSavedJobs.reverse() }); // Newest first
 
     } catch (error) {
         console.error("Error in getSavedJobs:", error);
-        res.status(500).json({ success: false, message: "Server error, please try again." });
+        res.status(500).json({ success: false, message: "Server error fetching saved jobs." });
     }
 };
+
+// Update user profile details (headline, location, skills, etc.)
+export const updateUserProfile = async (req, res) => {
+    try {
+        const userId = req.auth.userId;
+        const { headline, location, skills, experience, education, portfolioLink, linkedinLink } = req.body;
+
+         if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // Update fields using nullish coalescing to preserve existing data if not provided
+        user.headline = headline ?? user.headline;
+        user.location = location ?? user.location;
+        user.skills = skills ?? user.skills;
+        user.experience = experience ?? user.experience;
+        user.education = education ?? user.education;
+        user.portfolioLink = portfolioLink ?? user.portfolioLink;
+        user.linkedinLink = linkedinLink ?? user.linkedinLink;
+
+        await user.save();
+
+        // Send back updated user data
+        res.json({ success: true, message: "Profile updated successfully!", user });
+
+    } catch (error) {
+        console.error("Error updating user profile:", error);
+        res.status(500).json({ success: false, message: "Server error updating profile." });
+    }
+};
+
+// Get public profile data for a user
+export const getPublicUserProfile = async (req, res) => {
+    try {
+        const userId = req.params.id; // Get user ID from URL
+
+        // Find user and select only public fields
+        const user = await User.findById(userId)
+            .select('name image email resume headline location skills experience education portfolioLink linkedinLink'); 
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User profile not found." });
+        }
+        
+        res.json({ success: true, user });
+
+    } catch (error) {
+        console.error("Error fetching public user profile:", error);
+        if (error.kind === 'ObjectId') {
+             return res.status(400).json({ success: false, message: "Invalid user ID format." });
+        }
+        res.status(500).json({ success: false, message: "Server Error fetching profile." });
+    }
+};
+
+// --- END CONTROLLER FUNCTIONS ---
